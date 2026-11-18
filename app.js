@@ -126,9 +126,18 @@
           "'": "&#39;",
         })[c],
     );
-  const opts = (list) =>
+  const opts = (list, selected) =>
     list
-      .map(([v, t]) => '<option value="' + esc(v) + '">' + esc(t) + "</option>")
+      .map(
+        ([v, t]) =>
+          '<option value="' +
+          esc(v) +
+          '"' +
+          (v === selected ? " selected" : "") +
+          ">" +
+          esc(t) +
+          "</option>",
+      )
       .join("");
   const btn = (label, act, val = "", style = "") =>
     '<button type="button" data-action="' +
@@ -148,16 +157,84 @@
     "</small></div>" +
     control +
     "</div>";
-  const row = (label, sub, right) =>
+  const row = (label, sub, right, detail = "") =>
     '<div class="row"><div><strong>' +
     esc(label) +
     "</strong><small>" +
     esc(sub) +
-    "</small></div><div>" +
+    "</small>" +
+    detail +
+    "</div><div>" +
     right +
     "</div></div>";
   const badge = (t, good = false) =>
     '<span class="tag' + (good ? " good" : "") + '">' + esc(t) + "</span>";
+  const loanDetails = (loan) => loan.who + " · Due " + loan.due;
+  function handoverDetails(loan) {
+    if (loan.back) return "";
+    const { who, when } = loan.handover || {};
+    const summary = loan.handover
+      ? "<small>Expected from " + esc(who) + " · " + esc(when) + "</small>"
+      : "";
+    return (
+      summary +
+      '<details data-handover-for="' +
+      loan.num +
+      '"><summary>' +
+      (loan.handover ? "Edit handover" : "Add handover") +
+      '</summary><form data-handover="' +
+      loan.num +
+      '"><div class="form">' +
+      '<label><span>Expected from</span><select name="who" required>' +
+      '<option value="">Select…</option>' +
+      opts(people.map((person) => [person, person]), who) +
+      "</select></label>" +
+      '<label><span>Expected return</span><input name="when" required maxlength="60" value="' +
+      esc(when || "") +
+      '"></label></div><button type="submit">Save handover</button></form></details>'
+    );
+  }
+  function requestItems(request) {
+    const loans = s.loans.filter((loan) => loan.req === request.id).reverse();
+    return request.items.map((type) => ({
+      type,
+      loan: loans.find((loan) => getAsset(loan.asset).type === type),
+    }));
+  }
+  function requestProgress(items) {
+    const issued = items.filter(({ loan }) => loan).length;
+    const returned = items.filter(({ loan }) => loan?.back).length;
+    const total = items.length;
+    if (!issued) return "Awaiting pickup";
+    if (returned === total) return "All returned";
+    if (returned) {
+      const progress = [returned + " of " + total + " returned"];
+      const outstanding = issued - returned;
+      const pending = total - issued;
+      if (outstanding) progress.push(outstanding + " still out");
+      if (pending) progress.push(pending + " awaiting pickup");
+      return progress.join(" · ");
+    }
+    if (total === 1) return "Issued";
+    if (issued === total) return "All " + total + " issued";
+    return issued + " of " + total + " issued";
+  }
+  function requestItemRow({ type, loan }) {
+    if (!loan) return row(type, "Awaiting pickup", "");
+    return row(
+      type,
+      (loan.back ? "" : "Still out · ") +
+        loan.asset +
+        " · L-" +
+        loan.num +
+        " · " +
+        loanDetails(loan),
+      loan.back
+        ? badge("Returned")
+        : btn("Record return", "return", String(loan.num)),
+      handoverDetails(loan),
+    );
+  }
   function requestPage() {
     let html = head(
       "Approved requests",
@@ -165,11 +242,12 @@
     );
     if (s.selected) {
       const r = getReq(s.selected);
+      const items = requestItems(r);
       html +=
         btn("Back to list", "close") +
         '<div class="record"><small>' +
         r.id +
-        " · Approved</small><h3>" +
+        ' · Approved</small><h3 data-request-title tabindex="-1">' +
         r.event +
         "</h3><p>" +
         r.club +
@@ -177,17 +255,20 @@
         r.owner +
         "</p><p><b>Return by</b> " +
         r.due +
-        "</p><p><b>Approved equipment</b></p><ul>" +
-        r.items.map((x) => "<li>" + x + "</li>").join("") +
-        "</ul><p>" +
+        "</p><p>" +
         r.note +
         "</p></div>";
+      html +=
+        '<div class="buttons"><h3>Approved equipment</h3>' +
+        badge(requestProgress(items), items.every(({ loan }) => loan?.back)) +
+        "</div>" +
+        items.map(requestItemRow).join("");
     } else
       html += requests
         .map((r) =>
           row(
             r.event,
-            r.id + " · " + r.club,
+            r.id + " · " + r.club + " · " + requestProgress(requestItems(r)),
             btn("View form", "request", r.id),
           ),
         )
@@ -287,10 +368,11 @@
     for (const l of shown)
       html += row(
         "L-" + l.num + " · " + l.asset,
-        l.req + " · " + l.who + " · Due " + l.due,
+        l.req + " · " + loanDetails(l),
         l.back
           ? badge("Returned")
           : btn("Record return", "return", String(l.num)),
+        handoverDetails(l),
       );
     return html;
   }
@@ -415,6 +497,7 @@
       }
     }
     commit();
+    if (b.dataset.action === "return") q("[data-request-title]")?.focus();
   });
   root.addEventListener("change", (e) => {
     if (e.target.matches("[data-filter]")) {
@@ -426,6 +509,20 @@
     e.preventDefault();
     const f = e.target;
     const form = new FormData(f);
+    if (f.matches("[data-handover]")) {
+      const loan = s.loans.find((l) => l.num === Number(f.dataset.handover));
+      const who = form.get("who");
+      const when = String(form.get("when")).trim();
+      if (!loan || loan.back || !people.includes(who)) return;
+      if (!when) {
+        q("[data-status]").textContent = "Enter the expected return time.";
+        return;
+      }
+      loan.handover = { who, when };
+      commit("Handover saved for " + loan.asset + ".");
+      q('[data-handover-for="' + loan.num + '"] summary')?.focus();
+      return;
+    }
     if (f.matches("[data-note]")) {
       const text = String(form.get("note")).trim();
       if (!text) return;

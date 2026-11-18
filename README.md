@@ -1,6 +1,6 @@
 # Campus Stores
 
-Campus Stores is a Product Engineer work sample set at a fictional campus media equipment desk. Work through a club’s screening, from equipment pickup to a partial return and the next morning’s handover. Open **Candidate brief** in the app for the assignment.
+Campus Stores is a Product Engineer work sample set at a fictional campus equipment desk. The Film Society borrows a screening kit on Friday and brings it back in two trips. Open **Candidate brief** in the app for the assignment.
 
 ## Run the app
 
@@ -13,6 +13,30 @@ python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
 Each browser stores its own sample shift locally when browser storage is available. **Restart sample shift** restores the fictional starting records.
+
+## The decision
+
+I’d keep one slip per physical item. When Kabir brings back projector `PR-04` and speaker `SP-02`, the clerk can put both back on the shelf and leave adapter `AD-12` checked out. The two completed slips are still easy to find under **All slips**.
+
+The handover took more work. The approved request looked the same before pickup and after two items came back. The Loan register showed the adapter and its original Friday 8 pm due time, while Kabir’s Desk book message said Leela would bring it back Saturday at 9 am. The next clerk had to piece those details together to find the right slip.
+
+## What changed
+
+- **The request shows what’s left.** The list shows each request’s progress as the clerk issues and returns items. After the partial return, the Film Society’s request reads **2 of 3 returned · 1 still out**. Open it to see each approved item’s status and the latest unit and slip for items that went out. Earlier slips are in the Loan register under **All slips**.
+- **The handover lives on the item’s slip.** The Friday clerk can save **Leela Das · Sat 9 am** on `AD-12`. The next clerk sees who’s bringing the adapter and when, alongside Kabir’s name and the original due time. The plan is still there after a reload.
+- **Both screens use the same record.** The clerk can add or edit the handover and record the return in either Requests or the Loan register. Check in `AD-12` from either screen and the request shows **All returned**, the slip closes, and the adapter goes back on the shelf in Inventory.
+
+On narrow screens, a long handover entry could overlap the **Record return** button. The text now wraps inside the item row so the button stays usable.
+
+## Replay the shift
+
+Select **Restart sample shift** to start at Friday pickup.
+
+1. **Friday pickup.** Open **Courtyard screening** in Requests. It starts at **Awaiting pickup**. In the Loan register, issue `PR-04`, `SP-02`, and `AD-12` on separate slips for `RQ-214`, using **Kabir Sen** and **Fri 8 pm** for each. The request shows **All 3 issued**. Select **Move to return time**.
+2. **Friday return.** In the Loan register, record the projector and speaker returns. On the remaining adapter slip, select **Add handover**, choose **Leela Das**, enter **Sat 9 am**, and save. Open **Courtyard screening** in Requests to see **2 of 3 returned · 1 still out** and the saved handover. Select **Move to next morning**.
+3. **Saturday handover.** With the request open, match the physical label to `AD-12` and select **Record return** on that row. Requests now shows **All returned**. The Loan register also shows the slip as returned under **All slips**.
+
+At a real counter, I’d time how long a clerk who just started their shift takes to identify the correct open slip after an adapter is placed on the counter. I’d compare the original and prototype flows with two similar adapters in stock.
 
 ## Source
 
